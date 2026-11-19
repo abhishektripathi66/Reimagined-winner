@@ -1,0 +1,24 @@
+WyckoffPro Android APK
+
+Install
+1. Transfer wyckoffpro-android.apk to the Android phone.
+2. Open the APK and allow installation from that source if Android asks.
+3. Open WyckoffPro. On Android 13+, allow notifications if you want trade alerts.
+4. In Options Intel, turn on LIVE and tap Enable alerts. Keep the app open for scans and alerts.
+
+Market data without the PC proxy
+Yahoo-based index screening can run directly from the phone. Option premiums are theoretical in that free mode, not live option quotes.
+
+Enable Upstox/Dhan live data using the PC proxy
+1. Keep the PC and phone on the same trusted Wi-Fi. The PC must have Node.js installed.
+2. On the PC, open PowerShell in the folder containing dhan-proxy-android.js and start it with a long random key:
+   $env:WYCKOFF_PROXY_KEY = 'choose-a-long-random-key'
+   node .\dhan-proxy-android.js --host 0.0.0.0
+3. Run ipconfig on the PC and find its Wi-Fi IPv4 address (for example 192.168.1.20).
+4. In WyckoffPro → Connect Broker → Dhan settings, set Proxy URL to http://192.168.1.20:8765/dhan and Proxy access key to the same key.
+5. If Windows asks, allow Node.js through the firewall on Private networks only. Keep the proxy window open.
+
+The proxy normally listens only on the PC. LAN mode is keyed, but keep it limited to your trusted Wi-Fi and never expose port 8765 to the public internet. Upstox chain availability still depends on the token's API permissions.
+
+Build information
+This is a locally signed sideload APK, not a Play Store release. Its APK signature verified successfully. It was not run on a physical Android phone in this build environment.
