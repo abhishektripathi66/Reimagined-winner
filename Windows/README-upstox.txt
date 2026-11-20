@@ -1,7 +1,7 @@
-WyckoffPro + Upstox option-chain setup
+Reimagined Winner + Upstox option-chain setup
 
 Files
-- wyckoffpro-upstox.html: app with Upstox live option-chain support.
+- reimagined-winner-upstox.html: app with Upstox live option-chain support.
 - dhan-proxy.js: local connector for Upstox market data, Dhan, and Yahoo Finance.
 
 Setup
@@ -11,7 +11,7 @@ Setup
 4. Open PowerShell in that folder and run:
    node .\dhan-proxy.js
    Leave that window running.
-5. Open wyckoffpro-upstox.html in Chrome. Go to Options Intel → Upstox Data, paste the Analytics Token, then click Verify & connect. The token is saved before API verification, so a permission error does not erase it; a rejected request still means that particular API cannot provide data.
+5. Open reimagined-winner-upstox.html in Chrome. Go to Options Intel → Upstox Data, paste the Analytics Token, then click Verify & connect. The token is saved before API verification, so a permission error does not erase it; a rejected request still means that particular API cannot provide data.
 
 No OAuth redirect URI or API secret is needed. The Analytics Token is read-only, supports Upstox market-data APIs, and is saved in the current browser profile until disconnected. Upstox lists its validity as one year. This connection does not connect Upstox order placement or change the configured order broker.
 
@@ -45,3 +45,52 @@ Historical candle timestamps are normalized before replay so the backtest no lon
 
 Cross-market scan
 Options Intel → Find best across can scan the selected instrument, all three indices, eight liquid NSE F&O stocks (RELIANCE, HDFCBANK, ICICIBANK, SBIN, INFY, TCS, LT, BHARTIARTL), or the combined 11-symbol set. Wide scans are throttled to at least 60 seconds. Stock-option ideas require Upstox option-contract and live-chain access; if the token does not have that access, the stock symbols are shown as unavailable rather than using guessed lot sizes or stale option prices. The instrument master keys are the NSE_EQ ISIN keys published by Upstox.
+
+Reimagined Winner — local backend setup
+======================================
+
+1. Fill in the values you use in .env. Leave other providers blank.
+2. Open PowerShell in this folder and run: node .\dhan-proxy.js
+3. Open http://127.0.0.1:8765/ in your browser. Do not open the HTML file
+   directly; the page needs the local backend to read provider settings.
+4. Restart node after editing .env. The backend reads it once at startup.
+
+Credential handling
+-------------------
+The server reads .env beside dhan-proxy.js. /config returns configured flags
+and masked broker client IDs; it never returns API keys or tokens. The optional
+Google OAuth client ID is public and is sent to the page for sign-in. AI and
+supported broker requests are sent from Node with environment credentials.
+Dhan access tokens commonly expire daily; update that value in .env and restart
+the backend when it expires.
+
+DEFAULT_BROKER may be set to dhan, zerodha, groww, upstox, or angel. When it is
+blank, use Connect Broker and choose a provider already configured in .env.
+Only provider credentials are loaded automatically. The app still requires
+the user to confirm actual trading orders.
+
+FnO constituent-pattern overlay
+--------------------------------
+For NIFTY, BANKNIFTY, and SENSEX options, the scanner analyzes daily OHLCV
+patterns in up to ten high-weight constituents. It scores trend, breakouts,
+springs/upthrusts, and volume confirmation, then blends the weighted result
+into the index directional bias and setup quality. Daily series are cached
+for five minutes; an incomplete current-day candle is ignored during market
+hours. The first scan can take longer because it fetches component history.
+
+Weights are dated snapshots rather than a live weight feed. NIFTY and SENSEX
+use October 30, 2026 snapshots; BANKNIFTY uses the April 30, 2026 snapshot
+available in the official factsheet. The SENSEX list is explicitly a BSE
+SENSEX 50 top-weight proxy. The UI shows source/date and fades older weights.
+Refresh the mapping in reimagined-winner.html when the official factsheets
+change. The constituent overlay is a heuristic and has not been separately
+backtested. It adds context to ranking; it does not establish that the
+recommendations are more accurate.
+
+Provider scope
+--------------
+The current app adapters are Dhan, Upstox, Zerodha, Groww, and Angel One, plus
+Claude, Gemini, and OpenAI. BROKER_1_* and BROKER_2_* in .env are flexible
+credential slots; a new broker still needs an API adapter before the app can
+connect or trade through it. Check each broker's current API access and token
+rules before using it.
