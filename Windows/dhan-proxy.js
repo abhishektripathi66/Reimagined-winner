@@ -2,6 +2,7 @@
 // Start with: node dhan-proxy.js   then open http://127.0.0.1:8765/
 'use strict';
 const http=require('http'),https=require('https'),fs=require('fs'),path=require('path');
+const envFile=path.join(__dirname,'.env'),loadedEnvValues=new Map();
 
 function loadEnv(file){
   if(!fs.existsSync(file))return 0;
@@ -10,14 +11,16 @@ function loadEnv(file){
     const s=line.trim();if(!s||s.startsWith('#'))continue;
     const m=s.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);if(!m)continue;
     let value=m[2].trim();
-    if((value.startsWith('"')&&value.endsWith('"'))||(value.startsWith("'")&&value.endsWith("'")))value=value.slice(1,-1);
+    if(value.startsWith('"')&&value.endsWith('"')){try{value=JSON.parse(value);}catch(e){value=value.slice(1,-1);}}
+    else if(value.startsWith("'")&&value.endsWith("'"))value=value.slice(1,-1);
     else value=value.replace(/\s+#.*$/,'').trim();
     if(process.env[m[1]]===undefined)process.env[m[1]]=value;
+    loadedEnvValues.set(m[1],value);
     count++;
   }
   return count;
 }
-const envCount=loadEnv(path.join(__dirname,'.env'));
+const envCount=loadEnv(envFile);
 const PORT=+(process.env.PORT||8765),HOST='127.0.0.1';
 const UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36';
 const CORS={'Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,OPTIONS','Access-Control-Allow-Headers':'accept,content-type','Access-Control-Max-Age':'600','Vary':'Origin'};
@@ -44,6 +47,32 @@ function configStatus(){return{
     custom2:{configured:has('BROKER_2_NAME','BROKER_2_BASE_URL','BROKER_2_ACCESS_TOKEN'),name:val('BROKER_2_NAME')}
   }
 };}
+function readEnvValues(){
+  const values={};if(!fs.existsSync(envFile))return values;
+  for(const line of fs.readFileSync(envFile,'utf8').replace(/^\uFEFF/,'').split(/\r?\n/)){
+    const s=line.trim();if(!s||s.startsWith('#'))continue;
+    const m=s.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);if(!m)continue;
+    let value=m[2].trim();if(value.startsWith('"')&&value.endsWith('"')){try{value=JSON.parse(value);}catch(e){value=value.slice(1,-1);}}
+    else if(value.startsWith("'")&&value.endsWith("'"))value=value.slice(1,-1);else value=value.replace(/\s+#.*$/,'').trim();
+    values[m[1]]=value;
+  }
+  return values;
+}
+function writeEnvValues(input){
+  if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Expected an object of environment variables.');
+  const entries=Object.entries(input);if(entries.length>200)throw new Error('The environment editor supports at most 200 entries.');
+  const values={};let size=0;
+  for(const [rawKey,rawValue] of entries){
+    const key=String(rawKey).trim();if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key))throw new Error('Invalid environment variable name: '+key.slice(0,80));
+    const value=String(rawValue==null?'':rawValue);if(value.length>12000)throw new Error(key+' is too long.');size+=key.length+value.length+4;values[key]=value;
+  }
+  if(size>256*1024)throw new Error('Environment file exceeds 256 KB.');
+  const text=Object.entries(values).map(([key,value])=>key+'='+JSON.stringify(value)).join('\n')+'\n';
+  const temp=envFile+'.tmp';fs.writeFileSync(temp,text,{encoding:'utf8',mode:0o600});fs.renameSync(temp,envFile);
+  for(const [key,oldValue] of loadedEnvValues)if(!(key in values)&&process.env[key]===oldValue)delete process.env[key];
+  loadedEnvValues.clear();for(const [key,value] of Object.entries(values)){process.env[key]=value;loadedEnvValues.set(key,value);}
+  return Object.keys(values).length;
+}
 function send(res,status,body,headers={}){res.writeHead(status,{...headers,'Cache-Control':'no-store'});res.end(body);}
 function json(res,status,obj){send(res,status,JSON.stringify(obj),{'Content-Type':'application/json; charset=utf-8'});}
 function allowed(req){
@@ -118,8 +147,17 @@ const srv=http.createServer(async(req,res)=>{
   if(req.method==='GET'&&(url.pathname==='/'||url.pathname==='/app'||url.pathname==='/reimagined-winner.html')){
     try{return send(res,200,fs.readFileSync(path.join(__dirname,'reimagined-winner.html')),{...CORS,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});}catch(e){return json(res,500,{errorMessage:'Could not read reimagined-winner.html'});}
   }
-  if(req.method==='GET'&&url.pathname==='/ping')return json(res,200,{app:'reimagined-winner-local-backend',ok:true,port:PORT,features:['env','ai','brokers','dhan','upstox','yf']});
+  if(req.method==='GET'&&url.pathname==='/reimagined-winner-icon.svg'){
+    try{return send(res,200,fs.readFileSync(path.join(__dirname,'reimagined-winner-icon.svg')),{...CORS,'Content-Type':'image/svg+xml; charset=utf-8'});}catch(e){return json(res,404,{errorMessage:'App icon not found'});}
+  }
+  if(req.method==='GET'&&url.pathname==='/ping')return json(res,200,{app:'reimagined-winner-local-backend',ok:true,port:PORT,features:['env','env-editor','ai','brokers','dhan','upstox','yf','portfolio-research','turtle-soup']});
   if(req.method==='GET'&&url.pathname==='/config')return json(res,200,configStatus());
+  if(req.method==='GET'&&url.pathname==='/config/values')return json(res,200,{ok:true,values:readEnvValues()});
+  if(req.method==='POST'&&url.pathname==='/config/values'){
+    const raw=await readBody(req).catch(e=>null);if(raw===null)return json(res,400,{errorMessage:'Could not read configuration request.'});
+    try{const body=JSON.parse(raw.toString('utf8')),count=writeEnvValues(body.values);return json(res,200,{ok:true,count,restartRequired:Number(process.env.PORT||8765)!==PORT,config:configStatus()});}
+    catch(e){return json(res,400,{errorMessage:'Configuration was not saved: '+String(e.message||'invalid request').slice(0,180)});}
+  }
   const ai=url.pathname.match(/^\/ai\/(claude|gemini|openai)$/);if(ai)return aiRoute(ai[1],req,res);
   const broker=url.pathname.match(/^\/broker\/(zerodha|groww|upstox|angel)(\/.*)?$/);if(broker)return brokerRoute(broker[1],req,res,url);
   const dk='/dhan/',uk='/upstox/',yk='/yf/';

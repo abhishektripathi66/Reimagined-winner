@@ -1,0 +1,5 @@
+# ninja log v5
+3	10480	8169487038684353	CMakeFiles/native-lib.dir/native-lib.cpp.o	bd4994b390ccba80
+10578	11671	8169487051868805	C:/Users/Prabhat/Documents/Codex/2026-11-19/12-19-19-11-2026-drako/work/android-apk/app/build/intermediates/cxx/Debug/2415404r/obj/armeabi-v7a/libnative-lib.so	ec8c90485e6cc6b6
+87	15098	8169639863986612	CMakeFiles/native-lib.dir/native-lib.cpp.o	bd4994b390ccba80
+15109	16433	8169639878063281	C:/Users/Prabhat/Documents/Codex/2026-11-19/12-19-19-11-2026-drako/work/android-apk/app/build/intermediates/cxx/Debug/2415404r/obj/armeabi-v7a/libnative-lib.so	ec8c90485e6cc6b6

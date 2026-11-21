@@ -1,0 +1,37 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.reimagined.winner'
+    compileSdk 35
+
+    def retainedDebugKey = file('../../android-toolchain/debug.keystore')
+    if (retainedDebugKey.exists()) signingConfigs {
+        debug {
+            // Reuse the local development key from the previous Android package so
+            // this native replacement installs as an update and retains app data.
+            storeFile file('../../android-toolchain/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    defaultConfig {
+        applicationId 'com.reimagined.winner'
+        minSdk 26
+        targetSdk 35
+        versionCode 6
+        versionName '1.2.0'
+    }
+
+    sourceSets {
+        main {
+            // The desktop HTML, Node proxy and legacy native libraries are deliberately
+            // excluded from this Android-native application.
+            assets.srcDirs = []
+            jniLibs.srcDirs = []
+        }
+    }
+}
