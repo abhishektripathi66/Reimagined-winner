@@ -30,20 +30,22 @@ public final class PortfolioResearch {
 
         double c10=bars.get(Math.max(0,n-10)).close,c20=bars.get(Math.max(0,n-20)).close;
         String trend=last.close>c10*1.02&&c10>c20*1.01?"Bullish":last.close<c10*.98&&c10<c20*.99?"Bearish":"Neutral";
-        double rangeHi=-Double.MAX_VALUE,rangeLo=Double.MAX_VALUE;for(int i=Math.max(0,n-30);i<n;i++){rangeHi=Math.max(rangeHi,bars.get(i).high);rangeLo=Math.min(rangeLo,bars.get(i).low);}
+        double rangeHi=-Double.MAX_VALUE,rangeLo=Double.MAX_VALUE;for(int i=Math.max(0,n-31);i<n-1;i++){rangeHi=Math.max(rangeHi,bars.get(i).high);rangeLo=Math.min(rangeLo,bars.get(i).low);}
         String phase=last.close>rangeHi?"D · SOS":trend.equals("Bullish")?"E · Markup":last.close<rangeLo?"A · Markdown":(rangeHi-rangeLo)/last.close<.06?"C · Base":"B · Range";
         double[] sorted=volumes.clone();java.util.Arrays.sort(sorted);double median=(sorted[9]+sorted[10])/2;
         double volumeRatio=median>0?last.volume/median:0;int volumeDirection=volumeRatio>=1.15?(last.close>last.open?1:last.close<last.open?-1:0):0;
         int trendDirection=trend.equals("Bullish")?1:trend.equals("Bearish")?-1:0;
+        int smc=last.low<lo&&last.close>lo?1:last.high>hi&&last.close<hi?-1:last.close>hi?1:last.close<lo?-1:0;
+        String smcLabel=smc>0?"Bullish sweep / BOS":smc<0?"Bearish sweep / BOS":"No daily structure break";
         int wyckoff=phase.startsWith("D")||phase.startsWith("E")?1:phase.startsWith("A")?-1:0;
         // Daily Turtle Soup is the investment validation. This score also incorporates trend, phase and volume.
         double ret20=last.close/bars.get(Math.max(0,n-21)).close-1,ret60=last.close/bars.get(Math.max(0,n-61)).close-1;
         int momentum=Double.compare(ret20+ret60,0);
-        int score=(int)Math.round(100*(.28*trendDirection+.24*wyckoff+.26*turtle+.12*volumeDirection+.10*momentum));
+        int score=(int)Math.round(100*(.20*trendDirection+.18*wyckoff+.18*smc+.20*turtle+.12*volumeDirection+.12*momentum));
         String action=turtle<0||score<=-35?"REVIEW":score>=45?"HOLD / WATCH ADD":score>=10?"HOLD":"REVIEW";
-        Result r=new Result();r.score=score;r.trend=trend;r.phase=phase;r.turtleSoup=turtleLabel;r.turtleDirection=turtle;r.action=action;r.volumeRatio=volumeRatio;r.lastClose=last.close;r.asOf=LocalDate.ofInstant(Instant.ofEpochSecond(last.time),IST).toString();return r;
+        Result r=new Result();r.score=score;r.trend=trend;r.phase=phase;r.turtleSoup=turtleLabel;r.turtleDirection=turtle;r.smc=smcLabel;r.action=action;r.volumeRatio=volumeRatio;r.lastClose=last.close;r.asOf=LocalDate.ofInstant(Instant.ofEpochSecond(last.time),IST).toString();return r;
     }
 
     public static boolean isGrowthCandidate(Result r){return r!=null&&r.score>=35&&r.trend.equals("Bullish")&&r.turtleDirection>=0;}
-    public static final class Result {public int score,turtleDirection;public String trend,phase,turtleSoup,action,asOf;public double volumeRatio,lastClose;}
+    public static final class Result {public int score,turtleDirection;public String trend,phase,turtleSoup,smc,action,asOf;public double volumeRatio,lastClose;}
 }

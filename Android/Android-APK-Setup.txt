@@ -3,7 +3,7 @@ Reimagined Winner Android Native App
 
 Install the complete APK
 ------------------------
-1. Transfer ReimaginedWinner-Android-Native-1.2.0.apk to the phone.
+1. Transfer ReimaginedWinner-Android-Native-1.2.1.apk to the phone.
 2. Open it from Files and approve the one-time install-from-this-source prompt.
 3. Launch Reimagined Winner. Android may ask for notification permission.
 4. Open Settings > Import .env / local.env, or use Read / edit configuration.
@@ -13,11 +13,12 @@ Install the complete APK
 
 Portfolio research
 ------------------
-Open Portfolio to import a CSV or add holdings. CSV needs Symbol, Quantity and
-Average Price columns. The app scores supported liquid index constituents from
-real completed daily Upstox candles. Unknown symbols, unavailable history, and
-stale data do not get a fabricated recommendation. Growth candidates are a
-research watchlist selected from the mapped stock universe, not a forecast.
+Open Portfolio and choose Import Groww Excel / CSV. The app reads Groww's
+`.xlsx` holdings statement directly, skips its introductory summary rows, and
+maps Stock Name, ISIN, Quantity and Average buy price. It also accepts broker
+CSV files. The app scores holdings from real completed daily Upstox candles.
+Unavailable history does not get a fabricated recommendation. Growth
+candidates are a research watchlist, not a forecast.
 
 The investing Turtle Soup check is a simplified daily close-confirmed failed
 20-session breakout rule. The options scanner uses a separately labeled
@@ -26,12 +27,17 @@ is not a calibrated probability. Recommendations never send orders.
 
 Build the Android source
 ------------------------
-Unzip ReimaginedWinner-Android-Source-1.2.0.zip. Open its android-apk folder
+Unzip ReimaginedWinner-Android-Source-1.2.1.zip. Open its android-apk folder
 in Android Studio, install Android SDK Platform 35, and build the app's debug
 variant. The Gradle project uses JDK 17 and Android Gradle Plugin 8.7.3. A
 debug key is generated locally if you do not have the original signing key.
 That key will differ from this delivered APK, so Android may require uninstall
 before installing your own rebuild; back up app configuration first.
+
+Display and theme
+-----------------
+The refreshed Android screens use colorful gradient panels and a dark / light switch.
+Index price cards show green for rising prices and red for falling prices.
 
 Native app scope
 ----------------
