@@ -633,6 +633,7 @@ table.ochain tr.atm td.strike-col{color:var(--green);font-weight:800}
       <div class="side-sec">
         <div class="side-sec-t">🎯 Research-based suggestions</div>
         <div id="portResearchStatus" style="font-size:10px;color:var(--t3);margin:0 0 7px">Import holdings or connect a broker. Recommendations require real daily candles.</div>
+        <div id="portImportSummary" style="font-size:10px;color:var(--t2);margin:0 0 8px"></div>
         <div id="portActions"><div style="font-size:11px;color:var(--t3)">Connect broker to see recommendations</div></div>
         <div class="side-sec-t" style="margin-top:12px">🌱 Growth research candidates</div>
         <div id="growthCandidates" style="font-size:11px;color:var(--t3)">Candidates appear only when live history and signal checks are available.</div>
@@ -1004,9 +1005,13 @@ table.ochain tr.atm td.strike-col{color:var(--green);font-weight:800}
       <div class="imp-preview-title" style="margin-bottom:8px">Map Columns → Wyckoff Fields</div>
       <div class="col-map-grid">
         <div class="col-map-item"><div class="col-map-lbl">Symbol *</div><select class="col-map-sel" id="cm-sym"><option value="">— select —</option></select></div>
+        <div class="col-map-item"><div class="col-map-lbl">ISIN (optional, for daily history)</div><select class="col-map-sel" id="cm-isin"><option value="">— select —</option></select></div>
         <div class="col-map-item"><div class="col-map-lbl">Quantity</div><select class="col-map-sel" id="cm-qty"><option value="">— select —</option></select></div>
         <div class="col-map-item"><div class="col-map-lbl">Avg Cost / Buy Price</div><select class="col-map-sel" id="cm-avg"><option value="">— select —</option></select></div>
         <div class="col-map-item"><div class="col-map-lbl">LTP / Current Price</div><select class="col-map-sel" id="cm-ltp"><option value="">— select —</option></select></div>
+        <div class="col-map-item"><div class="col-map-lbl">Statement Buy Value</div><select class="col-map-sel" id="cm-buyval"><option value="">— select —</option></select></div>
+        <div class="col-map-item"><div class="col-map-lbl">Statement Closing Value</div><select class="col-map-sel" id="cm-closeval"><option value="">— select —</option></select></div>
+        <div class="col-map-item"><div class="col-map-lbl">Statement Unrealised P&amp;L</div><select class="col-map-sel" id="cm-stmtpnl"><option value="">— select —</option></select></div>
         <div class="col-map-item"><div class="col-map-lbl">Date Bought / Days</div><select class="col-map-sel" id="cm-days"><option value="">— select —</option></select></div>
         <div class="col-map-item"><div class="col-map-lbl">Sector (optional)</div><select class="col-map-sel" id="cm-sector"><option value="">— select —</option></select></div>
       </div>
@@ -1207,7 +1212,7 @@ function loadCSV(e){
 // STATE
 // ═══════════════════════════════════════════════════════════════
 let allSigs=[],activeFilt='ALL',selSig=null,sortCol='Quality_Score',sortAsc=false;
-let portfolio=[],portfolioAnalysis=[],_portResearchRun=0;
+let portfolio=[],portfolioAnalysis=[],_portResearchRun=0,portfolioImportSummary='';
 let orders=[],openPositions=[],pendingOrder=null,ordSide='BUY';
 let activeBroker=null,brokerCreds={};
 let autoEnabled=false,autoIntervalId=null,autoOrderCount=0;
@@ -1605,8 +1610,8 @@ async function onConnected(broker,username,corsMode){
 // PORTFOLIO ANALYSIS
 // ═══════════════════════════════════════════════════════════════
 function oPortRowsFromUpstox(data){const rows=data?.candles||data?.data?.candles||[];return rows.map(c=>{const raw=c[0],t=typeof raw==='number'?(raw>1e12?raw/1000:raw):Date.parse(raw)/1000,close=+c[4],volume=+c[5]||0;return{t,o:+c[1],h:+c[2],l:+c[3],c:close,v:volume,open:+c[1],high:+c[2],low:+c[3],close,vol:volume,val:close*volume,deliv:0,prevClose:close};}).filter(b=>b.t>0&&b.c>0).sort((a,b)=>a.t-b.t);}
-async function portfolioDailyBars(sym){
-  const key=UPSTOX_STOCKS[sym];
+async function portfolioDailyBars(sym,instrumentKey=''){
+  const key=instrumentKey||UPSTOX_STOCKS[sym];
   if(key&&_backendConfig?.brokers?.upstox?.marketData){try{const now=oIst(),end=now.y+'-'+o2(now.m+1)+'-'+now.d,from=new Date(Date.now()-200*86400000).toISOString().slice(0,10),data=await oUpstoxGet('/v3/historical-candle/'+encodeURIComponent(key)+'/days/1/'+end+'/'+from),bars=oPortRowsFromUpstox(data);if(bars.length>=25){if(oOpen()&&bars.at(-1)&&new Date((bars.at(-1).t+19800)*1000).toISOString().slice(0,10)===end)bars.pop();if(bars.length>=25)return{bars,source:'Upstox daily candles'};}}catch(e){}}
   try{const ticker=YF_MAP[sym]||encodeURIComponent(sym+'.NS'),bars=oBarsFromChart(await oChart(ticker,'6mo','1d')).map(b=>({...b,open:b.o,high:b.h,low:b.l,close:b.c,vol:b.v,val:b.c*b.v,deliv:0,prevClose:b.c}));if(oOpen()&&bars.at(-1)&&new Date((bars.at(-1).t+19800)*1000).toISOString().slice(0,10)===oIst().y+'-'+o2(oIst().m+1)+'-'+oIst().d)bars.pop();if(bars.length>=25)return{bars,source:'Yahoo Finance via local backend'};}catch(e){}
   throw new Error('No usable daily history for '+sym);
@@ -1631,10 +1636,10 @@ function portfolioSignal(rows){
 async function analysePortfolio(){
   const run=++_portResearchRun;if(!portfolio.length){portfolioAnalysis=[];renderPortTable();const s=document.getElementById('portResearchStatus');if(s)s.textContent='No holdings loaded · scanning mapped constituents for watchlist research candidates.';renderPortActions();await renderGrowthCandidates(run);return;}
   const status=document.getElementById('portResearchStatus');if(status)status.textContent='Loading real daily candles and applying Wyckoff, SMC, volume, trend and Turtle Soup checks…';
-  const results=await Promise.all(portfolio.map(async h=>{const quote=_priceCache[h.sym],ltp=Number(h.ltp)||Number(quote?.price)||null,holdDays=Number(h.holdDays)||180,isLTCG=holdDays>=365;try{
-    const {bars,source}=await portfolioDailyBars(h.sym),sig=portfolioSignal(bars),ci=sig.ci,avgCost=Number(h.avgCost)||0,pl=ltp&&avgCost?(ltp-avgCost)*h.qty:null,plPct=ltp&&avgCost?(ltp-avgCost)/avgCost*100:null,taxGain=Math.max(0,pl||0),taxAmt=pl==null?null:(isLTCG?Math.max(0,taxGain-LTCG_EXEMPT/portfolio.length)*LTCG_RATE:taxGain*STCG_RATE);
-    return{...h,ltp,pl,plPct,holdDays,isLTCG,taxAmt,taxGain,phase:sig.phase,trend:sig.trend,rec:sig.rec,currentVal:ltp?ltp*h.qty:null,invested:avgCost*h.qty,roe:ci.roe,rs:ci.volPct,signalScore:sig.score,turtleSoup:sig.ts.label,turtleDirection:sig.ts.direction,smcTag:sig.smcTag,volumeRatio:sig.volumeRatio,dataSource:source,bars};
-  }catch(e){return{...h,ltp,pl:null,plPct:null,holdDays,isLTCG,taxAmt:null,currentVal:ltp?ltp*h.qty:null,invested:(Number(h.avgCost)||0)*h.qty,phase:'—',trend:'Unknown',rec:'INSUFFICIENT DATA',signalScore:null,turtleSoup:'Unavailable · '+e.message,turtleDirection:0,dataSource:'Unavailable',bars:[]};}}));
+  const results=await Promise.all(portfolio.map(async h=>{const quote=_priceCache[h.sym],ltp=Number(quote?.price)||Number(h.ltp)||null,holdDays=Number(h.holdDays)||180,isLTCG=holdDays>=365;try{
+    const {bars,source}=await portfolioDailyBars(h.sym,h.instrumentKey),sig=portfolioSignal(bars),ci=sig.ci,avgCost=Number(h.avgCost)||0,pl=ltp&&avgCost?(ltp-avgCost)*h.qty:null,plPct=ltp&&avgCost?(ltp-avgCost)/avgCost*100:null,taxGain=Math.max(0,pl||0),taxAmt=pl==null?null:(isLTCG?Math.max(0,taxGain-LTCG_EXEMPT/portfolio.length)*LTCG_RATE:taxGain*STCG_RATE);
+    return{...h,ltp,pl,plPct,holdDays,isLTCG,taxAmt,taxGain,phase:sig.phase,trend:sig.trend,rec:sig.rec,currentVal:ltp?ltp*h.qty:null,invested:Number(h.statementBuyValue)||avgCost*h.qty,roe:ci.roe,rs:ci.volPct,signalScore:sig.score,turtleSoup:sig.ts.label,turtleDirection:sig.ts.direction,smcTag:sig.smcTag,volumeRatio:sig.volumeRatio,dataSource:source,bars};
+  }catch(e){return{...h,ltp,pl:null,plPct:null,holdDays,isLTCG,taxAmt:null,currentVal:ltp?ltp*h.qty:null,invested:Number(h.statementBuyValue)||(Number(h.avgCost)||0)*h.qty,phase:'—',trend:'Unknown',rec:'INSUFFICIENT DATA',signalScore:null,turtleSoup:'Unavailable · '+e.message,turtleDirection:0,dataSource:'Unavailable',bars:[]};}}));
   if(run!==_portResearchRun)return;portfolioAnalysis=results;renderPortTable();if(results.some(h=>h.currentVal!=null))calcPortStats();renderPortActions();renderDashStats();renderDashCharts();
   if(status){const ok=results.filter(h=>h.bars?.length>=25).length;status.textContent=ok+'/'+results.length+' holdings scored from real daily history · Turtle Soup uses completed daily bars only; unavailable data means no recommendation.';}
   await renderGrowthCandidates(run);
@@ -1671,7 +1676,7 @@ function renderPortTable(){
   const tb=document.getElementById('portBody');if(!tb)return;if(!portfolioAnalysis.length){tb.innerHTML='<tr><td colspan="13"><div class="empty"><div class="empty-icon">💼</div><div class="empty-t">Import a portfolio or connect a broker</div></div></td></tr>';return;}
   const recMap={EXIT:'rb-exit',ADD:'rb-add',HOLD:'rb-hold',REVIEW:'rb-hold',WATCH:'rb-hold','HOLD / WATCH ADD':'rb-add','INSUFFICIENT DATA':'rb-hold'};
   const recEmoji={EXIT:'🔴 REVIEW EXIT',ADD:'🟢 HOLD / WATCH ADD',HOLD:'🟡 HOLD',REVIEW:'⚠ REVIEW',WATCH:'👀 WATCH','HOLD / WATCH ADD':'🟢 HOLD / WATCH ADD','INSUFFICIENT DATA':'— INSUFFICIENT DATA'};
-  tb.innerHTML=portfolioAnalysis.map(h=>{const pos=h.pl!=null&&h.pl>=0,tC=h.trend==='Bullish'?'var(--green)':h.trend==='Bearish'?'var(--red)':'var(--t2)';return `<tr><td><b class="mono">${h.sym}</b><div style="font-size:9px;color:var(--t3)">${h.turtleSoup||h.dataSource||''}</div><div style="font-size:9px;color:var(--t3)">${h.smcTag||''} · VMA ${h.volumeRatio==null?'—':h.volumeRatio.toFixed(2)+'×'}</div></td><td class="mono">${h.qty}</td><td class="mono">${h.avgCost?'₹'+fp(h.avgCost):'—'}</td><td class="mono ${pos?'pos':'neg'}">${h.ltp?'₹'+fp(h.ltp):'—'}</td><td class="mono">${h.currentVal?'₹'+fv(h.currentVal):'—'}</td><td class="mono ${h.pl==null?'':pos?'pos':'neg'}">${h.plPct==null?'—':(pos?'+':'')+h.plPct.toFixed(1)+'%'}</td><td class="mono">${h.holdDays}d</td><td>${h.taxAmt==null?'—':`<span class="tax-chip ${h.isLTCG?'tax-l':'tax-s'}">${h.isLTCG?'LTCG':'STCG'}</span><div style="font-size:9px;color:var(--t3)">₹${fv(h.taxAmt)}</div>`}</td><td><span class="phase-badge pb-${h.phase}">${h.phase}</span></td><td style="color:${tC};font-size:11px;font-weight:600">${h.trend}</td><td class="mono">${h.roe!=null?h.roe.toFixed(2):'—'}</td><td class="mono">${h.rs!=null?(h.rs*100).toFixed(0)+'%':'—'}</td><td><span class="rec-btn ${recMap[h.rec]||'rb-hold'}">${recEmoji[h.rec]||h.rec}</span><div style="font-size:9px">${h.signalScore==null?'No data':'Research score '+h.signalScore+'/100'}</div></td></tr>`;}).join('');
+  tb.innerHTML=portfolioAnalysis.map(h=>{const pos=h.pl!=null&&h.pl>=0,tC=h.trend==='Bullish'?'var(--green)':h.trend==='Bearish'?'var(--red)':'var(--t2)',sub=v=>v?`<div style="font-size:9px;color:var(--t3)">Statement ₹${fv(v)}</div>`:'';return `<tr><td><b class="mono">${h.sym}</b><div style="font-size:9px;color:var(--t3)">${h.turtleSoup||h.dataSource||''}</div><div style="font-size:9px;color:var(--t3)">${h.smcTag||''} · VMA ${h.volumeRatio==null?'—':h.volumeRatio.toFixed(2)+'×'}</div></td><td class="mono">${h.qty}</td><td class="mono">${h.avgCost?'₹'+fp(h.avgCost):'—'}${sub(h.statementBuyValue)}</td><td class="mono ${pos?'pos':'neg'}">${h.ltp?'₹'+fp(h.ltp):'—'}${sub(h.statementClosePrice)}</td><td class="mono">${h.currentVal?'₹'+fv(h.currentVal):'—'}${sub(h.statementCloseValue)}</td><td class="mono ${h.pl==null?'':pos?'pos':'neg'}">${h.plPct==null?'—':(pos?'+':'')+h.plPct.toFixed(1)+'%'}${h.statementUnrealizedPL?`<div class="${h.statementUnrealizedPL>=0?'pos':'neg'}" style="font-size:9px">Statement ${h.statementUnrealizedPL>=0?'+':''}₹${fv(h.statementUnrealizedPL)}</div>`:''}</td><td class="mono">${h.holdDays}d</td><td>${h.taxAmt==null?'—':`<span class="tax-chip ${h.isLTCG?'tax-l':'tax-s'}">${h.isLTCG?'LTCG':'STCG'}</span><div style="font-size:9px;color:var(--t3)">₹${fv(h.taxAmt)}</div>`}</td><td><span class="phase-badge pb-${h.phase}">${h.phase}</span></td><td style="color:${tC};font-size:11px;font-weight:600">${h.trend}</td><td class="mono">${h.roe!=null?h.roe.toFixed(2):'—'}</td><td class="mono">${h.rs!=null?(h.rs*100).toFixed(0)+'%':'—'}</td><td><span class="rec-btn ${recMap[h.rec]||'rb-hold'}">${recEmoji[h.rec]||h.rec}</span><div style="font-size:9px">${h.signalScore==null?'No data':'Research score '+h.signalScore+'/100'}</div></td></tr>`;}).join('');
 }
 
 function calcPortStats(){
@@ -2073,28 +2078,32 @@ async function processFile(file) {
 
 // ── EXCEL ──────────────────────────────────────────────────────
 async function parseExcel(file) {
-  const buf  = await file.arrayBuffer();
-  const wb   = XLSX.read(buf, { type: 'array', cellDates: true });
-  // Use first sheet unless a sheet named 'Holdings' or 'Portfolio' exists
-  let sheetName = wb.SheetNames[0];
-  const pref = ['Holdings','Portfolio','Positions','Trades','BHAV','Data','Sheet1'];
-  for (const p of pref) {
-    const match = wb.SheetNames.find(s => s.toLowerCase().includes(p.toLowerCase()));
-    if (match) { sheetName = match; break; }
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const find = (headers, aliases) => headers.findIndex(h => aliases.includes(norm(h)));
+  const candidates = [];
+  for (const sheetName of wb.SheetNames) {
+    const data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
+    for (let headerIdx = 0; headerIdx < Math.min(100, data.length); headerIdx++) {
+      const headers = data[headerIdx].map(h => String(h).trim());
+      const sym = find(headers, ['stockname','symbol','ticker','scrip','tradingsymbol','companyname','securityname','isin']);
+      const qty = find(headers, ['quantity','qty','shares','units','holdingquantity']);
+      const avg = find(headers, ['averagebuyprice','averageprice','avgprice','avgcost','buyprice','costprice','purchaseprice']);
+      const buy = find(headers, ['buyvalue','investedvalue','costvalue']);
+      if (sym < 0 || qty < 0 || (avg < 0 && buy < 0)) continue;
+      const rows = data.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim()))
+        .map(r => Object.fromEntries(headers.filter(Boolean).map((h, i) => [h, String(r[i] ?? '').trim()])));
+      const dataRows = rows.filter(r => String(r[headers[sym]] ?? '').trim() && Number(String(r[headers[qty]] ?? '').replace(/,/g,'')) > 0).length;
+      candidates.push({ sheetName, headers, rows, headerIdx, score: dataRows * 100 + (avg >= 0 ? 5 : 0) + (find(headers,['isin']) >= 0 ? 2 : 0) });
+    }
   }
-  const ws   = wb.Sheets[sheetName];
-  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  if (data.length < 2) throw new Error('Sheet appears empty');
-  // Find header row (first row with >3 non-empty cells)
-  let headerIdx = 0;
-  for (let i = 0; i < Math.min(10, data.length); i++) {
-    if (data[i].filter(c => String(c).trim()).length >= 3) { headerIdx = i; break; }
-  }
-  _parsedHeaders = data[headerIdx].map(h => String(h).trim());
-  _parsedRows    = data.slice(headerIdx + 1)
-    .filter(r => r.some(c => String(c).trim()))
-    .map(r => Object.fromEntries(_parsedHeaders.map((h, i) => [h, String(r[i] ?? '').trim()])));
-  setImpStatus('ok', `✅ Excel loaded — ${wb.SheetNames.length} sheet(s), using "${sheetName}" — ${_parsedRows.length} rows, ${_parsedHeaders.length} columns`);
+  candidates.sort((a,b) => b.score - a.score);
+  const picked = candidates[0];
+  if (!picked || picked.score < 100) throw new Error('Could not find the holdings table. The workbook must contain Stock Name, Quantity, and Average buy price (or Buy value) columns.');
+  _parsedHeaders = picked.headers;
+  _parsedRows = picked.rows;
+  setImpStatus('ok', `✅ Excel loaded — found the holdings table on row ${picked.headerIdx + 1} of "${picked.sheetName}" — ${_parsedRows.length} rows, ${_parsedHeaders.length} columns`);
   showPreviewAndMap();
 }
 
@@ -2207,7 +2216,7 @@ function showPreviewAndMap() {
   document.getElementById('impPreviewWrap').style.display = 'block';
   // Populate column-map dropdowns
   const opts = ['', ..._parsedHeaders].map(h => `<option value="${h}">${h||'— none —'}</option>`).join('');
-  ['cm-sym','cm-qty','cm-avg','cm-ltp','cm-days','cm-sector','cm-open','cm-high','cm-low','cm-close','cm-vol','cm-val']
+  ['cm-sym','cm-isin','cm-qty','cm-avg','cm-ltp','cm-buyval','cm-closeval','cm-stmtpnl','cm-days','cm-sector','cm-open','cm-high','cm-low','cm-close','cm-vol','cm-val']
     .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts; });
   // Auto-detect columns
   autoDetectColumns();
@@ -2217,19 +2226,29 @@ function showPreviewAndMap() {
 }
 
 function autoDetectColumns() {
-  const h = _parsedHeaders.map(x => x.toLowerCase());
+  const h = _parsedHeaders.map(x => x.toLowerCase().replace(/[^a-z0-9]/g,''));
   function best(...terms) {
     for (const t of terms) {
-      const i = h.findIndex(x => x.includes(t));
+      const needle = t.replace(/[^a-z0-9]/g,'');
+      const i = h.findIndex(x => x === needle);
+      if (i >= 0) return _parsedHeaders[i];
+    }
+    for (const t of terms) {
+      const needle = t.replace(/[^a-z0-9]/g,'');
+      const i = h.findIndex(x => x.includes(needle));
       if (i >= 0) return _parsedHeaders[i];
     }
     return '';
   }
   // Portfolio fields
   setSelect('cm-sym',    best('symbol','scrip','stock','isin','ticker','name','tradingsymbol'));
+  setSelect('cm-isin',   best('isin'));
   setSelect('cm-qty',    best('qty','quantity','shares','holding','units'));
-  setSelect('cm-avg',    best('avg','average','buy','cost','purchase','invested per'));
-  setSelect('cm-ltp',    best('ltp','last','cmp','current','close','price','market'));
+  setSelect('cm-avg',    best('average buy price','average price','avg cost','avg price','buy avg','buy price','cost price','purchase price'));
+  setSelect('cm-ltp',    best('ltp','last traded price','last price','closing price','close price','cmp','current price'));
+  setSelect('cm-buyval', best('buy value','invested value','cost value'));
+  setSelect('cm-closeval', best('closing value','close value','market value','current value'));
+  setSelect('cm-stmtpnl', best('unrealised p&l','unrealized p&l','unrealised pnl','unrealized pnl','profit loss'));
   setSelect('cm-days',   best('day','date','bought','purchase date','holding period'));
   setSelect('cm-sector', best('sector','industry','category','segment'));
   // Screener fields
@@ -2254,14 +2273,18 @@ function applyImport() {
 
 function applyPortfolioImport() {
   const symCol    = document.getElementById('cm-sym').value;
+  const isinCol   = document.getElementById('cm-isin').value;
   const qtyCol    = document.getElementById('cm-qty').value;
   const avgCol    = document.getElementById('cm-avg').value;
   const ltpCol    = document.getElementById('cm-ltp').value;
   const daysCol   = document.getElementById('cm-days').value;
   const sectorCol = document.getElementById('cm-sector').value;
+  const buyValueCol = document.getElementById('cm-buyval').value;
+  const closeValueCol = document.getElementById('cm-closeval').value;
+  const statementPnlCol = document.getElementById('cm-stmtpnl').value;
   if (!symCol) { setImpStatus('err', '❌ Please map the Symbol column'); return; }
 
-  function cleanNum(v) { return parseFloat(String(v||'0').replace(/[₹,\s%]/g,'')) || 0; }
+  function cleanNum(v) { let s=String(v??'').trim().replace(/[₹,\s%]/g,'').replace(/[−–]/g,'-');const neg=s.startsWith('(')&&s.endsWith(')');s=s.replace(/[()]/g,'');const n=parseFloat(s.replace(/[^0-9.+-]/g,''));return Number.isFinite(n)?(neg?-Math.abs(n):n):0; }
   function parseDays(v) {
     const s = String(v||'');
     if (/\d{4}-\d{2}-\d{2}/.test(s)) return Math.floor((Date.now()-new Date(s))/864e5);
@@ -2269,18 +2292,38 @@ function applyPortfolioImport() {
     return cleanNum(s)||180;
   }
 
-  portfolio = _parsedRows.filter(r => r[symCol]?.trim()).map(r => ({
-    sym:      r[symCol].trim().toUpperCase().replace(/[-\s]EQ$/i,'').replace(/\.NS$/i,'').replace(/\.BO$/i,''),
-    qty:      qtyCol ? cleanNum(r[qtyCol]) : 1,
-    avgCost:  avgCol ? cleanNum(r[avgCol]) : cleanNum(r[ltpCol]||0)*0.9,
-    ltp:      ltpCol ? cleanNum(r[ltpCol]) : null,
+  function normalizeGrowwSymbol(raw){const n=String(raw||'').toUpperCase().replace(/[^A-Z0-9]/g,'');const aliases=[[/BHARATELECTRONICS/,'BEL'],[/BSELIMITED/,'BSE'],[/DIVISLABORATOR/,'DIVISLAB'],[/GARDENREACH/,'GRSE'],[/HBLENGINEERING/,'HBLENGINE'],[/HINDUSTANAERONAUTICS/,'HAL'],[/HINDUSTANZINC/,'HINDZINC'],[/MAZAGONDOCK/,'MAZDOCK'],[/MULTICOMMODITYEXCHANGE/,'MCX'],[/GOLDBEES/,'GOLDBEES'],[/NETFSILVER|SILVERBEES/,'SILVERBEES'],[/ORACLEFINSERV/,'OFSS']];for(const [re,sym] of aliases)if(re.test(n))return sym;return String(raw||'').trim().toUpperCase().replace(/[-\s]EQ$/i,'').replace(/\.NS$/i,'').replace(/\.BO$/i,'');}
+  const nonblankRows=_parsedRows.filter(r=>Object.values(r).some(v=>String(v??'').trim()));
+  const candidates=nonblankRows.filter(r => r[symCol]?.trim()).map(r => {
+    const isin=isinCol?String(r[isinCol]||'').trim().toUpperCase():'';
+    const sym=normalizeGrowwSymbol(r[symCol]);
+    const qty=qtyCol?cleanNum(r[qtyCol]):1;
+    const statementBuyValue=buyValueCol?cleanNum(r[buyValueCol]):0;
+    const avg=avgCol?cleanNum(r[avgCol]):(statementBuyValue>0&&qty>0?statementBuyValue/qty:0);
+    const statementClosePrice=ltpCol?cleanNum(r[ltpCol]):0;
+    return {
+    sym,
+    displayName:r[symCol].trim(),
+    instrumentKey:/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)?'NSE_EQ|'+isin:'',
+    qty,
+    avgCost: avg,
+    ltp: statementClosePrice || null,
+    statementBuyValue,
+    statementClosePrice,
+    statementCloseValue:closeValueCol?cleanNum(r[closeValueCol]):(statementClosePrice>0?statementClosePrice*qty:0),
+    statementUnrealizedPL:statementPnlCol?cleanNum(r[statementPnlCol]):0,
     holdDays: daysCol ? parseDays(r[daysCol]) : 180,
     sector:   sectorCol ? (r[sectorCol]||'') : '',
-  })).filter(h => h.sym && h.qty > 0);
+  }}).filter(h => h.sym && h.qty > 0);
+  portfolio=candidates;
 
   if (!portfolio.length) { setImpStatus('err', '❌ No valid rows found — check Symbol column mapping'); return; }
+  const sourceRows=nonblankRows.filter(r=>String(r[symCol]??'').trim()).length;
+  const skipped=Math.max(0,sourceRows-portfolio.length);
+  portfolioImportSummary=`Groww statement import: ${portfolio.length} of ${sourceRows} holdings rows loaded${skipped?` · ${skipped} row(s) skipped (missing/invalid quantity or symbol)`:''}. Statement buy value, closing price/value, and unrealised P&L are retained where present.`;
+  const summaryEl=document.getElementById('portImportSummary');if(summaryEl)summaryEl.textContent=portfolioImportSummary;
   closeImport();
-  toast(`✅ Imported ${portfolio.length} holdings`);
+  toast(`✅ Imported ${portfolio.length} holdings (${skipped} skipped)`);
   logActivity('📂', `Imported ${portfolio.length} holdings`, `from file via ${_parsedHeaders.length}-column mapping`);
   analysePortfolio();
   goTab('port');
@@ -2360,7 +2403,7 @@ if(saved){const c=JSON.parse(saved);Object.assign(CFG,c);document.getElementById
 function goTab(t){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));document.getElementById('page-'+t).classList.add('on');document.getElementById('tab-'+t).classList.add('on');if(t==='ord'){renderOrders();renderPositions()}if(t==='opt'){optOnEnter()}else{optOnLeave()}}
 
 function exportCSV(){
-  const data=allSigs.length?allSigs:portfolioAnalysis.map(h=>({Symbol:h.sym,Phase:h.phase,Trend:h.trend,Rec:h.rec,LTP:h.ltp,AvgCost:h.avgCost,PnL:h.pl?.toFixed(2),Tax:h.taxAmt?.toFixed(2),TaxType:h.isLTCG?'LTCG':'STCG'}));
+  const data=allSigs.length?allSigs:portfolioAnalysis.map(h=>({Symbol:h.sym,Phase:h.phase,Trend:h.trend,Rec:h.rec,LTP:h.ltp,AvgCost:h.avgCost,StatementBuyValue:h.statementBuyValue,StatementClosePrice:h.statementClosePrice,StatementCloseValue:h.statementCloseValue,StatementUnrealizedPL:h.statementUnrealizedPL,PnL:h.pl?.toFixed(2),Tax:h.taxAmt?.toFixed(2),TaxType:h.isLTCG?'LTCG':'STCG'}));
   if(!data.length){toast('Nothing to export');return}
   const cols=Object.keys(data[0]);const csv=[cols.join(','),...data.map(r=>cols.map(c=>{const v=r[c];if(v==null)return'';if(typeof v==='number')return v.toFixed(4);return String(v).replace(/,/g,';')}).join(','))].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='reimagined-winner_'+new Date().toISOString().slice(0,10)+'.csv';a.click();toast('✓ Exported')

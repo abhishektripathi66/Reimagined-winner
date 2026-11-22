@@ -1,0 +1,48 @@
+Reimagined Winner Android Native App
+====================================
+
+Install the complete APK
+------------------------
+1. Transfer ReimaginedWinner-Android-Native-1.2.1.apk to the phone.
+2. Open it from Files and approve the one-time install-from-this-source prompt.
+3. Launch Reimagined Winner. Android may ask for notification permission.
+4. Open Settings > Import .env / local.env, or use Read / edit configuration.
+   The values are stored encrypted with an Android Keystore key; no .env file is
+   bundled in the APK. The in-app editor shows secret values while open.
+5. Add Upstox access/analytics token to load live market data and daily candles.
+
+Portfolio research
+------------------
+Open Portfolio and choose Import Groww Excel / CSV. The app reads Groww's
+`.xlsx` holdings statement directly, skips its introductory summary rows, and
+maps Stock Name, ISIN, Quantity and Average buy price. It also accepts broker
+CSV files. The app scores holdings from real completed daily Upstox candles.
+Unavailable history does not get a fabricated recommendation. Growth
+candidates are a research watchlist, not a forecast.
+
+The investing Turtle Soup check is a simplified daily close-confirmed failed
+20-session breakout rule. The options scanner uses a separately labeled
+20-bar intraday failed-breakout proxy. It is not the original daily setup and
+is not a calibrated probability. Recommendations never send orders.
+
+Build the Android source
+------------------------
+Unzip ReimaginedWinner-Android-Source-1.2.1.zip. Open its android-apk folder
+in Android Studio, install Android SDK Platform 35, and build the app's debug
+variant. The Gradle project uses JDK 17 and Android Gradle Plugin 8.7.3. A
+debug key is generated locally if you do not have the original signing key.
+That key will differ from this delivered APK, so Android may require uninstall
+before installing your own rebuild; back up app configuration first.
+
+Display and theme
+-----------------
+The refreshed Android screens use colorful gradient panels and a dark / light switch.
+Index price cards show green for rising prices and red for falling prices.
+
+Native app scope
+----------------
+This is a Java Android app. It does not bundle Node.js or wrap the Windows HTML.
+It uses direct Upstox HTTPS for supported market data, app-private encrypted
+settings, daily-candle portfolio research, and local notifications while active.
+It needs an internet connection and a valid provider token. It does not run
+background scans after the app is closed or submit live orders.

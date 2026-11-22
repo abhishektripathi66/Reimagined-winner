@@ -1,3 +1,0 @@
-C:/Users/Prabhat/Documents/Codex/2026-11-19/12-19-19-11-2026-drako/work/android-apk/app/.cxx/Debug/2415404r/armeabi-v7a/CMakeFiles/native-lib.dir
-C:/Users/Prabhat/Documents/Codex/2026-11-19/12-19-19-11-2026-drako/work/android-apk/app/.cxx/Debug/2415404r/armeabi-v7a/CMakeFiles/edit_cache.dir
-C:/Users/Prabhat/Documents/Codex/2026-11-19/12-19-19-11-2026-drako/work/android-apk/app/.cxx/Debug/2415404r/armeabi-v7a/CMakeFiles/rebuild_cache.dir
