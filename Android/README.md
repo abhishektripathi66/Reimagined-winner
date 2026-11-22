@@ -15,7 +15,7 @@ From this directory, run `gradlew.bat assembleDebug` on Windows or `./gradlew as
 - Home, confirmed option signals, portfolio research, AI assistant, and settings screens.
 - Colorful gradient panels, a dark / light switch, and index prices colored green on rises and red on falls.
 - In-app environment editor. Values are encrypted with Android Keystore and remain in app-private storage.
-- Groww `.xlsx` holdings statements and broker CSV imports, plus manual positions. The importer finds Groww's holdings table below its summary rows, reads Stock Name / ISIN / Quantity / Average buy price, and uses the ISIN instrument key for real daily candles. Research uses actual completed daily Upstox candles; missing history does not receive an actionable recommendation.
+- Groww `.xlsx` holdings statements and broker CSV imports, plus manual positions. The importer searches all worksheets and scans up to 100 rows for the actual holdings header, then reads Stock Name / ISIN / Quantity / Average buy price / Buy value / Closing price / Closing value / Unrealised P&L. It reports source rows, loaded positions and skipped rows; the statement fields remain visible separately from current daily-candle research.
 - Daily Turtle Soup rule for portfolio research and a clearly labeled 20-bar intraday failed-breakout proxy for option signals. Scores are research ranks, not calibrated probabilities.
 - Custom market turtle/candlestick launcher mark with adaptive and monochrome Android icon resources.
 - No order placement. Trade validity and notifications operate while the app is active.
